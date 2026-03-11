@@ -1,1 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gator Green: LCA SimCity Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=VT323&family=Inter:wght@400;700&display=swap');
+        
+        :root {
+            --sim-blue: #2a4d69;
+            --sim-green: #4b8632;
+            --uf-orange: #FA4616;
+            --uf-blue: #0021A5;
+        }
 
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: #3d6a4b; /* SimCity classic green grass */
+            background-image: 
+                linear-gradient(45deg, #4b8632 25%, transparent 25%), 
+                linear-gradient(-45deg, #4b8632 25%, transparent 25%), 
+                linear-gradient(45deg, transparent 75%, #4b8632 75%), 
+                linear-gradient(-45deg, transparent 75%, #4b8632 75%);
+            background-size: 40px 40px;
+            background-position: 0 0, 0 20px, 20px 20px, 20px 0;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        .pixel-font { font-family: 'VT323', monospace; }
+
+        /* SimCity Window Style */
+        .sim-window {
+            background: #d1d1d1;
+            border-top: 4px solid #ffffff;
+            border-left: 4px solid #ffffff;
+            border-right: 4px solid #555555;
+            border-bottom: 4px solid #555555;
+            box-shadow: 10px 10px 0px rgba(0,0,0,0.2);
+        }
+
+        .sim-titlebar {
+            background: linear-gradient(to right, #000080, #1084d0);
+            padding: 4px 8px;
+            color: white;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .sim-button {
+            background: #d1d1d1;
+            border-top: 2px solid #ffffff;
+            border-left: 2px solid #ffffff;
+            border-right: 2px solid #555555;
+            border-bottom: 2px solid #555555;
+            transition: all 0.1s;
+        }
+
+        .sim-button:active {
+            border-top: 2px solid #555555;
+            border-left: 2px solid #555555;
+            border-right: 2px solid #ffffff;
+            border-bottom: 2px solid #ffffff;
+            transform: translate(1px, 1px);
+        }
+
+        .advisor-bubble {
+            position: relative;
+            background: #fff;
+            border: 3px solid #000;
+            border-radius: 10px;
+            padding: 15px;
+        }
+
+        .advisor-bubble::after {
+            content: '';
+            position: absolute;
+            left: -15px;
+            top: 20px;
+            border-width: 10px 15px 10px 0;
+            border-style: solid;
+            border-color: transparent #000 transparent transparent;
+        }
+
+        /* Ticker Animation */
+        @keyframes ticker {
+            0% { transform: translateX(100%); }
+            100% { transform: translateX(-100%); }
+        }
+        .ticker-text {
+            display: inline-block;
+            white-space: nowrap;
+            animation: ticker 20s linear infinite;
+        }
+
+        .progress-fill { transition: width 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+    </style>
+</head>
+<body class="flex items-center justify-center p-2">
+
+    <!-- Top Status Bar -->
+    <div class="fixed top-0 left-0 w-full bg-black text-green-400 pixel-font text-xl py-1 px-4 z-50 overflow-hidden border-b-2 border-slate-700">
+        <div class="ticker-text">
+            CITY NEWS: NEW UF MUSEUM PROJECT UNDERWAY... LCA MANAGER HIRED... ALBERT THE GATOR SPOTTED NEAR CONSTRUCTION SITE... SUSTAINABILITY IS KEY...
+        </div>
+    </div>
+
+    <!-- Main Game Container -->
+    <div id="game-window" class="sim-window w-full max-w-5xl h-[85vh] flex flex-col relative">
+        <!-- Title Bar -->
+        <div class="sim-titlebar">
+            <span class="pixel-font text-2xl tracking-wider uppercase">UF Museum Life Cycle Simulator 2000</span>
+            <div class="flex gap-1">
+                <div class="w-4 h-4 bg-red-600 border border-white"></div>
+            </div>
+        </div>
+
+        <!-- Toolbar & Dashboard -->
+        <div class="flex border-b-2 border-slate-400">
+            <!-- Sidebar Icons -->
+            <div class="w-16 bg-slate-300 p-2 flex flex-col gap-2 border-r-2 border-slate-400">
+                <div class="sim-button p-2 text-center text-xl">🏗️</div>
+                <div class="sim-button p-2 text-center text-xl">📊</div>
+                <div class="sim-button p-2 text-center text-xl">🌳</div>
+                <div class="sim-button p-2 text-center text-xl">⚡</div>
+                <div class="mt-auto sim-button p-2 text-center text-xl">❓</div>
+            </div>
+
+            <!-- Stats Bar -->
+            <div class="flex-grow grid grid-cols-4 bg-slate-200 p-2 gap-4">
+                <div class="bg-black text-green-500 p-2 border-b-2 border-r-2 border-slate-100 flex flex-col items-center">
+                    <span class="pixel-font text-sm uppercase">Budget</span>
+                    <span id="budget-display" class="pixel-font text-2xl leading-none font-bold">$10,000,000</span>
+                </div>
+                <div class="bg-slate-300 p-1 border-2 border-slate-400 rounded">
+                    <div class="text-[10px] font-bold uppercase text-slate-600 mb-1">Pollution (GWP)</div>
+                    <div class="w-full bg-slate-400 h-3 rounded-sm overflow-hidden">
+                        <div id="gwp-bar" class="progress-fill bg-red-600 h-full w-0"></div>
+                    </div>
+                    <div id="gwp-val" class="pixel-font text-right text-sm">0k CO2e</div>
+                </div>
+                <div class="bg-slate-300 p-1 border-2 border-slate-400 rounded">
+                    <div class="text-[10px] font-bold uppercase text-slate-600 mb-1">Water Scarcity</div>
+                    <div class="w-full bg-slate-400 h-3 rounded-sm overflow-hidden">
+                        <div id="water-bar" class="progress-fill bg-blue-600 h-full w-0"></div>
+                    </div>
+                    <div id="water-val" class="pixel-font text-right text-sm">0 m³</div>
+                </div>
+                <div class="bg-slate-300 p-1 border-2 border-slate-400 rounded">
+                    <div class="text-[10px] font-bold uppercase text-slate-600 mb-1">Circularity</div>
+                    <div class="w-full bg-slate-400 h-3 rounded-sm overflow-hidden">
+                        <div id="circularity-bar" class="progress-fill bg-green-600 h-full w-0"></div>
+                    </div>
+                    <div id="circularity-val" class="pixel-font text-right text-sm">0%</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Viewport Area -->
+        <div id="viewport" class="flex-grow relative overflow-auto p-8 flex items-center justify-center bg-sky-200">
+            <!-- Simulated Isometric Map Background -->
+            <div class="absolute inset-0 opacity-20 pointer-events-none" style="background-image: radial-gradient(#2a4d69 1px, transparent 1px); background-size: 30px 30px;"></div>
+            
+            <!-- Game Content Screen -->
+            <div id="main-content" class="relative z-10 w-full max-w-2xl">
+                <!-- Intro -->
+                <div id="intro-screen" class="sim-window p-8 text-center space-y-6">
+                    <h2 class="pixel-font text-5xl text-uf-blue font-bold italic">GATOR GREEN LCA</h2>
+                    <div class="flex justify-center items-center gap-4">
+                        <div class="w-24 h-24 bg-slate-300 border-4 border-white flex items-center justify-center text-5xl">👷</div>
+                        <p class="text-left font-bold text-slate-700 italic">"Welcome Mayor... I mean, Manager! The University needs a museum. Keep the carbon low or the environmental advisor will have your job!"</p>
+                    </div>
+                    <button onclick="startGame()" class="sim-button px-10 py-4 bg-green-600 text-white pixel-font text-3xl hover:bg-green-500">
+                        OPEN PROJECT
+                    </button>
+                </div>
+
+                <!-- Stage View -->
+                <div id="stage-screen" class="hidden animate-in fade-in zoom-in duration-300">
+                    <div class="flex flex-col md:flex-row gap-6 items-start">
+                        <!-- Advisor -->
+                        <div class="flex-shrink-0 w-32 flex flex-col items-center">
+                            <div class="w-24 h-24 bg-slate-300 border-4 border-white flex items-center justify-center text-5xl mb-2">👩‍💼</div>
+                            <span class="bg-black text-white pixel-font px-2 text-xs">ENV. ADVISOR</span>
+                        </div>
+                        
+                        <!-- Choice Bubble -->
+                        <div class="flex-grow advisor-bubble shadow-xl">
+                            <h2 id="stage-title" class="pixel-font text-3xl text-uf-blue border-b-2 border-slate-200 mb-2">Stage Name</h2>
+                            <p id="stage-desc" class="text-slate-600 text-sm mb-4 leading-tight italic">Description goes here.</p>
+                            
+                            <div id="options-container" class="space-y-3">
+                                <!-- Options injected here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Result View -->
+                <div id="results-screen" class="hidden sim-window p-8 space-y-6 bg-slate-100">
+                    <h2 class="pixel-font text-4xl text-center text-slate-800">PROJECT COMPLETION REPORT</h2>
+                    <div id="final-stats" class="grid grid-cols-3 gap-4"></div>
+                    <div id="feedback-text" class="bg-white p-4 border-2 border-slate-300 font-bold italic text-slate-700"></div>
+                    <div class="flex justify-center">
+                        <button onclick="location.reload()" class="sim-button px-8 py-3 bg-uf-blue text-white pixel-font text-2xl">
+                            FILE NEW REPORT
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer Stats -->
+        <div class="bg-slate-300 p-1 px-4 border-t-2 border-slate-400 flex justify-between items-center text-[10px] font-bold text-slate-600 uppercase">
+            <div>UF Planning Dept v2.0</div>
+            <div id="stage-indicator">STAGE: WAITING</div>
+            <div>Date: March 2026</div>
+        </div>
+    </div>
+
+    <script>
+        let state = {
+            budget: 10000000,
+            gwp: 0,
+            water: 0,
+            circularity: 0,
+            currentStage: 0,
+            choices: []
+        };
+
+        const stages = [
+            {
+                title: "Foundation & Frame",
+                desc: "Every great building starts with high embodied carbon. What's the plan?",
+                icon: "🏗️",
+                options: [
+                    {
+                        name: "Steel & Concrete",
+                        cost: 2200000,
+                        gwp: 400000,
+                        water: 6000,
+                        circularity: 15,
+                        feedback: "Traditional and sturdy, but the carbon footprint is massive."
+                    },
+                    {
+                        name: "Engineered Timber",
+                        cost: 3800000,
+                        gwp: 95000,
+                        water: 1500,
+                        circularity: 75,
+                        feedback: "Sequestered carbon is the way of the future, Manager!"
+                    }
+                ]
+            },
+            {
+                title: "The Glass Enclosure",
+                desc: "We need natural light, but the heat gain in Florida is a monster.",
+                icon: "🏢",
+                options: [
+                    {
+                        name: "Single Pane Glazing",
+                        cost: 300000,
+                        gwp: 25000,
+                        water: 500,
+                        circularity: 5,
+                        feedback: "Cheap to buy, but our AC units will be running 24/7."
+                    },
+                    {
+                        name: "Triple-E Insulated Glass",
+                        cost: 950000,
+                        gwp: 70000,
+                        water: 1200,
+                        circularity: 30,
+                        feedback: "High embodied energy for production, but slashes cooling costs."
+                    }
+                ]
+            },
+            {
+                title: "Interior Finishes",
+                desc: "Students will be walking here. Make it durable and sustainable.",
+                icon: "🎨",
+                options: [
+                    {
+                        name: "Standard Epoxy",
+                        cost: 150000,
+                        gwp: 20000,
+                        water: 2000,
+                        circularity: 0,
+                        feedback: "Nasty chemicals in the manufacturing phase. No recycling path."
+                    },
+                    {
+                        name: "Reclaimed Wood",
+                        cost: 500000,
+                        gwp: 5000,
+                        water: 300,
+                        circularity: 95,
+                        feedback: "Beautiful! Circularity score is through the roof!"
+                    }
+                ]
+            },
+            {
+                title: "Powering the Gator",
+                desc: "Gainesville Regional Utilities or something more local?",
+                icon: "⚡",
+                options: [
+                    {
+                        name: "Natural Gas Connection",
+                        cost: 50000,
+                        gwp: 250000,
+                        water: 8000,
+                        circularity: 0,
+                        feedback: "High operational emissions over the next 50 years."
+                    },
+                    {
+                        name: "Geo-Thermal Loop",
+                        cost: 2000000,
+                        gwp: 40000,
+                        water: 200,
+                        circularity: 50,
+                        feedback: "The ground stays cool. This is a big win for the long-term LCA."
+                    }
+                ]
+            }
+        ];
+
+        function updateDisplay() {
+            // Budget
+            const budgetEl = document.getElementById('budget-display');
+            budgetEl.innerText = `$${state.budget.toLocaleString()}`;
+            budgetEl.classList.toggle('text-red-500', state.budget < 0);
+            
+            // Bars
+            const gwpPercent = Math.min((state.gwp / 800000) * 100, 100);
+            document.getElementById('gwp-val').innerText = `${(state.gwp / 1000).toFixed(0)}k CO2e`;
+            document.getElementById('gwp-bar').style.width = `${gwpPercent}%`;
+            
+            const waterPercent = Math.min((state.water / 15000) * 100, 100);
+            document.getElementById('water-val').innerText = `${state.water.toLocaleString()} m³`;
+            document.getElementById('water-bar').style.width = `${waterPercent}%`;
+
+            const circAvg = state.choices.length > 0 
+                ? state.choices.reduce((acc, c) => acc + c.circularity, 0) / state.choices.length 
+                : 0;
+            document.getElementById('circularity-val').innerText = `${circAvg.toFixed(0)}%`;
+            document.getElementById('circularity-bar').style.width = `${circAvg}%`;
+
+            document.getElementById('stage-indicator').innerText = `STAGE: ${state.currentStage + 1} / ${stages.length}`;
+        }
+
+        function startGame() {
+            document.getElementById('intro-screen').classList.add('hidden');
+            document.getElementById('stage-screen').classList.remove('hidden');
+            loadStage();
+        }
+
+        function loadStage() {
+            const stage = stages[state.currentStage];
+            document.getElementById('stage-title').innerText = stage.title;
+            document.getElementById('stage-desc').innerText = stage.desc;
+
+            const container = document.getElementById('options-container');
+            container.innerHTML = '';
+
+            stage.options.forEach((opt, index) => {
+                const btn = document.createElement('button');
+                btn.className = "sim-button w-full text-left p-3 hover:bg-slate-100 flex justify-between items-center group";
+                btn.onclick = () => makeChoice(index);
+                btn.innerHTML = `
+                    <div class="flex-grow">
+                        <div class="font-bold text-slate-800">${opt.name}</div>
+                        <div class="text-[10px] uppercase text-slate-500">${opt.feedback}</div>
+                    </div>
+                    <div class="text-right pixel-font text-lg text-uf-blue">
+                        $${(opt.cost/1000).toFixed(0)}K
+                    </div>
+                `;
+                container.appendChild(btn);
+            });
+        }
+
+        function makeChoice(index) {
+            const choice = stages[state.currentStage].options[index];
+            state.budget -= choice.cost;
+            state.gwp += choice.gwp;
+            state.water += choice.water;
+            state.choices.push(choice);
+
+            state.currentStage++;
+            updateDisplay();
+
+            if (state.currentStage < stages.length) {
+                loadStage();
+            } else {
+                showResults();
+            }
+        }
+
+        function showResults() {
+            document.getElementById('stage-screen').classList.add('hidden');
+            document.getElementById('results-screen').classList.remove('hidden');
+
+            const circAvg = state.choices.reduce((acc, c) => acc + c.circularity, 0) / state.choices.length;
+            
+            let rating = "";
+            let ratingColor = "text-red-600";
+            if (state.gwp < 250000 && state.budget >= 0) {
+                rating = "SUSTAINABILITY GURU";
+                ratingColor = "text-green-600";
+            } else if (state.gwp < 500000) {
+                rating = "COMPLIANT MANAGER";
+                ratingColor = "text-blue-600";
+            } else {
+                rating = "ENVIRONMENTAL DISASTER";
+            }
+
+            document.getElementById('final-stats').innerHTML = `
+                <div class="sim-window bg-white p-2 text-center">
+                    <div class="text-[10px] font-bold">CO2 TOTAL</div>
+                    <div class="pixel-font text-2xl">${(state.gwp/1000).toFixed(0)}K</div>
+                </div>
+                <div class="sim-window bg-white p-2 text-center">
+                    <div class="text-[10px] font-bold">CIRCULARITY</div>
+                    <div class="pixel-font text-2xl">${circAvg.toFixed(0)}%</div>
+                </div>
+                <div class="sim-window bg-white p-2 text-center">
+                    <div class="text-[10px] font-bold">FUNDS LEFT</div>
+                    <div class="pixel-font text-2xl">$${(state.budget/1000000).toFixed(1)}M</div>
+                </div>
+            `;
+
+            let feedback = `"Manager, the board has reviewed your life cycle assessment. They've decided your performance is: <span class='${ratingColor} font-black'>${rating}</span>."<br><br>`;
+            
+            if (state.budget < 0) feedback += "Warning: The University CFO is not happy about the debt!";
+            if (state.gwp > 600000) feedback += "Warning: Environmental groups are protesting the construction!";
+
+            document.getElementById('feedback-text').innerHTML = feedback;
+        }
+
+        updateDisplay();
+    </script>
+</body>
+</html>
